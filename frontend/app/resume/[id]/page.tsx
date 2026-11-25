@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -26,7 +27,7 @@ function messageOf(e: unknown, fallback: string): string {
   return e instanceof ApiError ? e.message : fallback;
 }
 
-export default function ResumeDetailPage() {
+function ResumeDetailContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
@@ -40,31 +41,61 @@ export default function ResumeDetailPage() {
   const loadResume = useCallback(async () => {
     try {
       setResume(await api.getResume(id));
+      setError(null);
     } catch (e) {
       setError(messageOf(e, "Could not load this resume."));
     }
   }, [id]);
 
+  // Load resume when the page opens or the ID changes.
   useEffect(() => {
-    loadResume();
-  }, [loadResume]);
+    let cancelled = false;
+
+    async function fetchResume() {
+      try {
+        const data = await api.getResume(id);
+
+        if (!cancelled) {
+          setResume(data);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(messageOf(e, "Could not load this resume."));
+        }
+      }
+    }
+
+    fetchResume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   // Poll while the worker is busy.
   const status = resume?.status;
+
   useEffect(() => {
     if (status !== "uploaded" && status !== "processing") return;
+
     const timer = setInterval(loadResume, 2000);
+
     return () => clearInterval(timer);
   }, [status, loadResume]);
 
   // Load the extracted details once they are ready.
   const ready = status === "needs_review" || status === "completed";
+
   useEffect(() => {
     if (!ready || draft !== null) return;
+
     let cancelled = false;
-    api
-      .getAnalysis(id)
-      .then((a) => {
+
+    async function fetchAnalysis() {
+      try {
+        const a = await api.getAnalysis(id);
+
         if (!cancelled) {
           setDraft({
             skills: a.skills,
@@ -73,14 +104,26 @@ export default function ResumeDetailPage() {
             education: a.education,
           });
         }
-      })
-      .catch((e) => setError(messageOf(e, "Could not load the extracted details.")));
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            messageOf(e, "Could not load the extracted details.")
+          );
+        }
+      }
+    }
+
+    fetchAnalysis();
+
     return () => {
       cancelled = true;
     };
   }, [ready, draft, id]);
 
-  function update<K extends keyof Analysis>(key: K, value: Analysis[K]) {
+  function update<K extends keyof Analysis>(
+    key: K,
+    value: Analysis[K]
+  ) {
     setDraft((d) => (d ? { ...d, [key]: value } : d));
     setDirty(true);
     setNotice(null);
@@ -88,8 +131,10 @@ export default function ResumeDetailPage() {
 
   async function save(): Promise<boolean> {
     if (!draft) return false;
+
     setWorking(true);
     setError(null);
+
     try {
       await api.saveAnalysis(id, draft);
       setDirty(false);
@@ -104,13 +149,17 @@ export default function ResumeDetailPage() {
   }
 
   async function onSave() {
-    if (await save()) setNotice("Changes saved. Confirm when everything looks right.");
+    if (await save()) {
+      setNotice("Changes saved. Confirm when everything looks right.");
+    }
   }
 
   async function onConfirm() {
     if (dirty && !(await save())) return;
+
     setWorking(true);
     setError(null);
+
     try {
       setResume(await api.confirmResume(id));
       setNotice("Resume confirmed. It can now be used for practice.");
@@ -122,9 +171,13 @@ export default function ResumeDetailPage() {
   }
 
   async function onReprocess() {
-    if (!window.confirm("Read the file again? Your edits will be replaced.")) return;
+    if (!window.confirm("Read the file again? Your edits will be replaced.")) {
+      return;
+    }
+
     setWorking(true);
     setError(null);
+
     try {
       setResume(await api.reprocessResume(id));
       setDraft(null);
@@ -138,8 +191,16 @@ export default function ResumeDetailPage() {
   }
 
   async function onDelete() {
-    if (!window.confirm("Delete this resume and all details extracted from it?")) return;
+    if (
+      !window.confirm(
+        "Delete this resume and all details extracted from it?"
+      )
+    ) {
+      return;
+    }
+
     setWorking(true);
+
     try {
       await api.deleteResume(id);
       router.push("/resume");
@@ -153,31 +214,43 @@ export default function ResumeDetailPage() {
 
   return (
     <div>
-      <Link href="/resume" className="text-sm text-gray-600 hover:underline">
+      <Link
+        href="/resume"
+        className="text-sm text-gray-600 hover:underline"
+      >
         Back to resumes
       </Link>
 
       {resume && (
         <div className="mb-4 mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{resume.original_filename}</h1>
+          <h1 className="text-2xl font-semibold">
+            {resume.original_filename}
+          </h1>
           <StatusBadge status={resume.status} />
         </div>
       )}
 
       {error && <ErrorBox message={error} />}
+
       {notice && (
-        <p role="status" className="mb-4 rounded border border-green-300 bg-green-50 p-3 text-green-800">
+        <p
+          role="status"
+          className="mb-4 rounded border border-green-300 bg-green-50 p-3 text-green-800"
+        >
           {notice}
         </p>
       )}
 
-      {resume && (status === "uploaded" || status === "processing") && (
-        <Loading label="Reading your resume. This usually takes a few seconds..." />
-      )}
+      {resume &&
+        (status === "uploaded" || status === "processing") && (
+          <Loading label="Reading your resume. This usually takes a few seconds..." />
+        )}
 
       {resume?.status === "failed" && (
         <div className="mb-4">
-          <ErrorBox message={resume.status_message ?? "Processing failed."} />
+          <ErrorBox
+            message={resume.status_message ?? "Processing failed."}
+          />
         </div>
       )}
 
@@ -210,30 +283,43 @@ export default function ResumeDetailPage() {
             addLabel="Add skill"
             max={60}
           />
+
           <FieldList
             title="Projects"
             items={draft.projects}
             fields={[
               { key: "name", label: "Project name" },
               { key: "technologies", label: "Technologies" },
-              { key: "description", label: "Description", multiline: true },
+              {
+                key: "description",
+                label: "Description",
+                multiline: true,
+              },
             ]}
             onChange={(items) => update("projects", items as Project[])}
             addLabel="Add project"
             max={15}
           />
+
           <FieldList
             title="Experience"
             items={draft.experiences}
             fields={[
               { key: "company", label: "Company or organisation" },
               { key: "role", label: "Role" },
-              { key: "description", label: "Description", multiline: true },
+              {
+                key: "description",
+                label: "Description",
+                multiline: true,
+              },
             ]}
-            onChange={(items) => update("experiences", items as Experience[])}
+            onChange={(items) =>
+              update("experiences", items as Experience[])
+            }
             addLabel="Add experience"
             max={15}
           />
+
           <FieldList
             title="Education"
             items={draft.education}
@@ -242,7 +328,9 @@ export default function ResumeDetailPage() {
               { key: "degree", label: "Degree" },
               { key: "field", label: "Field of study" },
             ]}
-            onChange={(items) => update("education", items as Education[])}
+            onChange={(items) =>
+              update("education", items as Education[])
+            }
             addLabel="Add education"
             max={10}
           />
@@ -260,15 +348,19 @@ export default function ResumeDetailPage() {
               >
                 Save changes
               </button>
+
               <button
                 onClick={onConfirm}
                 disabled={working || (status === "completed" && !dirty)}
                 className="rounded bg-black px-4 py-2 text-white disabled:opacity-50"
               >
-                {status === "completed" && !dirty ? "Confirmed" : "Confirm details"}
+                {status === "completed" && !dirty
+                  ? "Confirmed"
+                  : "Confirm details"}
               </button>
             </>
           )}
+
           {(ready || status === "failed") && (
             <button
               onClick={onReprocess}
@@ -278,6 +370,7 @@ export default function ResumeDetailPage() {
               Read file again
             </button>
           )}
+
           <button
             onClick={onDelete}
             disabled={working}
@@ -288,5 +381,12 @@ export default function ResumeDetailPage() {
         </div>
       )}
     </div>
+  );
+}
+export default function ResumeDetailPage() {
+  return (
+    <Suspense fallback={<Loading />}>
+      <ResumeDetailContent />
+    </Suspense>
   );
 }
