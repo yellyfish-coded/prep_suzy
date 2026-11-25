@@ -1,4 +1,4 @@
-FROM docker.dockerhub.timeweb.cloud/library/python:3.12-slim
+FROM dockerhub.timeweb.cloud/library/python:3.12-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1

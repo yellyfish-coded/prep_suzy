@@ -3,7 +3,13 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+# Small pool: Supabase's pooler has a connection limit shared with everything else.
+engine = create_engine(
+    settings.database_url,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=5,
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
