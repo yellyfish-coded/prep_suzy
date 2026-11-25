@@ -1,4 +1,4 @@
-# Prep Suzy - inteview assistant for students
+# Prep Suzy - interview assistant for students
 
 > **AI-Powered Technical Interview & Career Readiness Platform**  
 > Tailored mock interviews, resume extraction, skill verification, and real-time practice feedback.
