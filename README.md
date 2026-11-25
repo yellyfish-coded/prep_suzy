@@ -1,19 +1,19 @@
-# Prep Suzy 🎯
+# Prep Suzy - inteview assistant for students
 
 > **AI-Powered Technical Interview & Career Readiness Platform**  
 > Tailored mock interviews, resume extraction, skill verification, and real-time practice feedback.
 
 ---
 
-## 📌 Project Overview
+##  Project Overview
 
 **Prep Suzy** is a full-stack platform designed to help job candidates prepare for technical interviews. It processes and validates candidate resumes, extracts verified skills and experiences through an AI analysis pipeline, and uses candidate profiles to generate targeted, role-specific interview preparation.
 
 ---
 
-## 🚀 Current Implementation Status
+## Current Implementation Status
 
-### ✅ Completed Features
+### Completed Features
 
 #### 1. Backend Architecture (FastAPI & Python 3.12+)
 * **Database & ORM**: PostgreSQL (hosted on **Supabase**) using **SQLAlchemy 2.0** with strict typing and **Alembic** migrations (`app/db/migrations/`).
